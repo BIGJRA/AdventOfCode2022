@@ -47,6 +47,7 @@ def part2():
             x += int(line.split()[1])
     for line in image:
         print(''.join(line))
+        # This one requires visually looking!
 
 part2()
 # submit('ELPLZGZL')
