@@ -1,18 +1,12 @@
 from aocd import lines, submit
-#############################
 
-def part1():
-    ans = 0
-    return ans
+def solve(part_no):
+    return part_no
 
-print (part1())
-# submit(part1())
-#############################
+p1 = solve(1)
+print(p1)
+# submit(p1)
 
-
-def part2():
-    ans = 0
-    return ans
-
-print(part2())
-# submit(part2())
+p2 = solve(2)
+print(p2)
+# submit(p2)

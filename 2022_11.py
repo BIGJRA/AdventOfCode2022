@@ -45,11 +45,9 @@ def solve(part_no):
 
 
 p1 = solve(1)
-assert p1 == (113220)
 print(p1)
 # submit(p1)
 
 p2 = solve(2)
-assert p2 == (30599555965)
 print(p2)
 # submit(p2)
