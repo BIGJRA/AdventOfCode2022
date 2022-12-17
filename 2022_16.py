@@ -1,84 +1,66 @@
 import re
-from functools import *
 from aocd import lines, submit
-import itertools
-from dataclasses import dataclass
 
-linesf = '''Valve AA has flow rate=0; tunnels lead to valves DD, II, BB
-Valve BB has flow rate=13; tunnels lead to valves CC, AA
-Valve CC has flow rate=2; tunnels lead to valves DD, BB
-Valve DD has flow rate=20; tunnels lead to valves CC, AA, EE
-Valve EE has flow rate=3; tunnels lead to valves FF, DD
-Valve FF has flow rate=0; tunnels lead to valves EE, GG
-Valve GG has flow rate=0; tunnels lead to valves FF, HH
-Valve HH has flow rate=22; tunnel leads to valve GG
-Valve II has flow rate=0; tunnels lead to valves AA, JJ
-Valve JJ has flow rate=21; tunnel leads to valve II'''.splitlines()
 
-# @dataclass
-# class Valve:
-#     name: str
-#     flow_rate: int
-#     children: list[str]
-
-# ('DD', 'BB', 'JJ', 'HH', 'EE', 'CC')
 def solve(part_no):
+    def generate_valve_sequences(pos, open_valves, time_left):
+        for nxt in notable_valves:
+            if nxt not in open_valves and distances[(pos, nxt)] < time_left:
+                # we rule out sequences that will take up more time than we have.
+                open_valves.append(nxt)
+                yield from generate_valve_sequences(nxt, open_valves, time_left - distances[(pos, nxt)] - 1)
+                open_valves.pop()
+        yield list(open_valves)
 
-    @lru_cache()
-    def dp(valve, visited, ppm, total_pressure, minutes, path):
-        nonlocal best
-        #print(valve, ppm, total_pressure, minutes, path)
+    def get_score(valve_sequence, time_left):
+        prv, total = "AA", 0
+        for cur in valve_sequence:
+            time_left -= distances[(prv, cur)] + 1
+            total += valves[cur] * time_left
+            prv = cur
+        return total
 
-        if minutes >= total_time:
-            # print(valve, ppm, total_pressure, minutes, path)
-            best = max(best, total_pressure)
-            return best
-        visited = visited.union(frozenset([valve]))
-        minutes = minutes + 1
-        total_pressure += ppm
-        ppm += valves[valve]
-        path = path + (valve,)
-        # print(valve, ppm, total_pressure, minutes, path)
-
-        # print(valve, ppm, total_pressure, minutes, path)
-        for adj in valves:
-            if adj not in visited:
-                d = distances[(valve, adj)]
-                to_add = (ppm * min(d, total_time - minutes))
-                dp(adj, visited, ppm, total_pressure + to_add, min(total_time, minutes + d), path)
-        if sorted(valves.keys()) == sorted(list(visited)):
-            dp(adj, visited, ppm, total_pressure + (total_time - minutes) * ppm, total_time, path)
-
-    total_time = {1:30,2:26}[part_no]
+    total_time = {1: 30, 2: 26}[part_no]
     valves = {}
     distances = {}
-    for line in lines: # get valve pressures, get all edges into distances for Floyd Warshall
+    for line in lines:  # get valve pressures, get all edges into distances for Floyd Warshall
         codes = re.findall(r'[A-Z]{2}', line)
-        distances[(codes[0],codes[0])] = 0
+        distances[(codes[0], codes[0])] = 0
         valves[codes[0]] = int(re.findall(r'\d+', line)[0])
         for adj in codes[1:]:
-            distances[(codes[0], adj)] = 1 # Sets codes to 1 for edges
-    for i in valves: # Adds temp infinite distance for vertices without edges
+            distances[(codes[0], adj)] = 1  # Sets codes to 1 for edges
+    for i in valves:  # Adds temp infinite distance for vertices without edges
         for j in valves:
             if (i, j) not in distances:
                 distances[(i, j)] = float('inf')
-    for k in valves: # Main step of algorithm - updates all shortest paths. O(V3).
+    for k in valves:  # Main step of algorithm - updates all shortest paths. O(V3).
         for i in valves:
             for j in valves:
                 if distances[(i, j)] > distances[(i, k)] + distances[(k, j)]:
                     distances[(i, j)] = distances[(i, k)] + distances[(k, j)]
+    notable_valves = {v: valves[v] for v in valves if valves[v] > 0}
 
-    to_del = []
-    for valve, pressure in valves.items(): # Takes out the non-useful valve pressures.
-        if pressure == 0:
-            to_del.append(valve)
-    for del_valve in to_del:
-        del valves[del_valve]
-    #print (distances)
-    #print (valve_pressures)
-    best = 0
-    for valve in valves:
-        dp(valve, frozenset(), 0, 0, distances[('AA', valve)], ())
+    if part_no == 1:
+        best = 0
+        for seq in generate_valve_sequences("AA", [], total_time):
+            best = max(best, get_score(seq, total_time))
+
+    elif part_no == 2:  # We can maximize by checking the best possible scores for each set of visited
+        # Notable valves. We update this by sorting the hash and putting it in the dictionary.
+        scores_by_hash = {}
+        for seq in generate_valve_sequences("AA", [], total_time):
+            score = get_score(seq, total_time)
+            hashable = tuple(sorted(seq))
+            curr = 0 if not (hashable in scores_by_hash) else scores_by_hash[hashable]
+            scores_by_hash[hashable] = max(score, curr)
+        scores_by_hash = list(scores_by_hash.items())
+        best = 0
+        for elf_seq, elf_score in scores_by_hash:
+            for phant_seq, phant_score in scores_by_hash:
+                # We update the best score only if the elephant and the elf are not intersecting, since that's a waste.
+                if set(elf_seq).intersection(set(phant_seq)) == set([]):
+                    best = max(best, elf_score + phant_score)
+
     return best
 
 
@@ -86,80 +68,6 @@ p1 = solve(1)
 print(p1)
 # submit(p1)
 
-# p2 = solve(2)
-# print(p2)
+p2 = solve(2)
+print(p2)
 # submit(p2)
-
-def solve2(part_no):
-
-    def calculate_total_pressure(order):
-        #print (order)
-        time = 0
-        idx = -1
-        prv = 'AA'
-        cur = order[0]
-        ppm = 0
-        total = 0
-        while time < 30:
-            idx += 1
-            if idx == len(order):
-                move_time = 30 - time
-                total += (ppm * move_time)
-                time = 30
-                print(time, idx, prv, cur, ppm, total)
-                return total
-            cur = order[idx]
-            #print (time, prv, cur, ppm, total)
-            d = distances[(prv, cur)]
-            move_time = min(d, 30 - time)
-            total += ppm * move_time
-            time += move_time
-            if time < 30:
-                prv = cur
-                move_time = 1
-                total += (ppm * move_time)
-                time += move_time
-                ppm += valve_pressures[cur]
-                #print(time, prv, cur, ppm, total)
-            prv = cur
-        #print(time, prv, cur, ppm, total)
-        return total
-
-    valve_pressures = {}
-    distances = {}
-    for line in lines: # get valve pressures, get all edges into distances for Floyd Warshall
-        codes = re.findall(r'[A-Z]{2}', line)
-        distances[(codes[0],codes[0])] = 0
-        valve_pressures[codes[0]] = int(re.findall(r'\d+', line)[0])
-        for adj in codes[1:]:
-            distances[(codes[0], adj)] = 1 # # S
-    for i in valve_pressures: # Adds temp infinite distance for vertices without edges
-        for j in valve_pressures:
-            if (i, j) not in distances:
-                distances[(i, j)] = float('inf')
-    for k in valve_pressures: # Main step of algorithm - updates all shortest paths. O(V3).
-        for i in valve_pressures:
-            for j in valve_pressures:
-                if distances[(i, j)] > distances[(i, k)] + distances[(k, j)]:
-                    distances[(i, j)] = distances[(i, k)] + distances[(k, j)]
-
-    to_del = []
-    for valve, pressure in valve_pressures.items(): # Takes out the non-useful valve pressures.
-        if pressure == 0:
-            to_del.append(valve)
-    print (valve_pressures)
-
-    for del_valve in to_del:
-        del valve_pressures[del_valve]
-    #print (distances)
-    print (valve_pressures)
-    best = 0
-    for perm in itertools.permutations(valve_pressures.keys()):
-        best = max(best, calculate_total_pressure(perm))
-    return best
-
-#p1 = solve2(1)
-#print(p1)
-# submit(p1)
-
-
