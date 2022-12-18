@@ -32,10 +32,6 @@ def solve(part_no):
             lines.appendleft(f"Room with {self.num_rocks} rocks:")
             return '\n'.join(lines)
 
-        def manual_add_height(self, height):
-            # Needed for part 2 - arbitrarily inject height so it doesn't need to manually add rocks at each step
-            self.height += height
-
         def generate_rock(self):
             pos = self.rock_shapes[self.rock_idx]
             self.current_rock = [(r[0] + 2, r[1] + self.height + 3) for r in pos]
@@ -144,15 +140,11 @@ def solve(part_no):
             del sim  # delete the unneeded sim object at this point, break the loop
             break
 
-    # Actual room to get the height. It will be just the "before and after" cycle rocks, with manually added cycles.
+    # Actual room to get the height. It will be just the "before and after" cycle rocks.
     room = Room(rock_coords, directions)
-    for rock in range(rocks_at_start):
+    for rock in range(rocks_at_start + remainder_rocks):
         room.drop_rock()
-    for rock in range(remainder_rocks): # behavior after the cycle will be uniform, so I drop the remainder rocks here
-        room.drop_rock()
-    # To account for all the cycles, I use the workaround method to add the cycle height
-    room.manual_add_height(num_full_cycles * height_per_cycle)
-    return room.height
+    return room.height + (num_full_cycles * height_per_cycle) # Cycle rocks are added here
 
 
 p1 = solve(1)
