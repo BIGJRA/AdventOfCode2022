@@ -47,29 +47,22 @@ def solve(part_no):
             self.jet_idx += 1
             self.jet_idx %= len(self.jets)
             new = []
-            # print ("before horz", self.current_rock, drct)
             for pos in self.current_rock:
                 new_x = pos[0] + drct
                 if (new_x, pos[1]) in self.occupied or new_x < 0 or new_x > 6:
-                    # print("after  horz", self.current_rock, False)
                     return False  # could not move rock
                 new.append((new_x, pos[1]))
             self.current_rock = new
-            # print ("after  horz", self.current_rock, True)
             return True  # successfully moved rock
 
         def move_rock_down(self):
             new = []
-            # print ("before down", self.current_rock, -1)
-
             for pos in self.current_rock:
                 new_y = pos[1] - 1
                 if (pos[0], new_y) in self.occupied or new_y < 0:
-                    # print("after  down", self.current_rock, False)
                     return False  # could not move rock
                 new.append((pos[0], new_y))
             self.current_rock = new
-            # print ("after  down", self.current_rock, True)
 
             return True  # successfully moved rock
 
