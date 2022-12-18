@@ -1,8 +1,5 @@
 from aocd import lines, submit
 from collections import deque
-import math
-
-lifnes = '''>>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>'''.splitlines()
 
 def solve(part_no):
     class Room:
@@ -26,23 +23,6 @@ def solve(part_no):
             self.rocks_per_height = []
             self.line_hash = []
 
-            # Once cycle is found we use these to do the iteration work
-            self.found = False
-            self.cycle_start = 0
-            self.cycle_length = 0
-
-        def get_height(self):
-            return self.height
-
-        def add_height(self, height):
-            self.height += height
-
-        def add_rocks(self, num_rocks):
-            self.num_rocks += num_rocks
-
-        def get_num_rocks(self):
-            return self.num_rocks
-
         def __str__(self):
             lines = deque()
             lines.appendleft(f'{"-1".ljust(5)}+-------+')
@@ -51,6 +31,10 @@ def solve(part_no):
                 lines.appendleft(f'{str(y).ljust(5)}|{"".join(chars)}|')
             lines.appendleft(f"Room with {self.num_rocks} rocks:")
             return '\n'.join(lines)
+
+        def manual_add_height(self, height):
+            # Needed for part 2 - arbitrarily inject height so it doesn't need to manually add rocks at each step
+            self.height += height
 
         def generate_rock(self):
             pos = self.rock_shapes[self.rock_idx]
@@ -68,11 +52,11 @@ def solve(part_no):
                 new_x = pos[0] + drct
                 if (new_x, pos[1]) in self.occupied or new_x < 0 or new_x > 6:
                     # print("after  horz", self.current_rock, False)
-                    return False # could not move rock
+                    return False  # could not move rock
                 new.append((new_x, pos[1]))
             self.current_rock = new
             # print ("after  horz", self.current_rock, True)
-            return True # successfully moved rock
+            return True  # successfully moved rock
 
         def move_rock_down(self):
             new = []
@@ -82,29 +66,31 @@ def solve(part_no):
                 new_y = pos[1] - 1
                 if (pos[0], new_y) in self.occupied or new_y < 0:
                     # print("after  down", self.current_rock, False)
-                    return False # could not move rock
+                    return False  # could not move rock
                 new.append((pos[0], new_y))
             self.current_rock = new
             # print ("after  down", self.current_rock, True)
 
-            return True # successfully moved rock
+            return True  # successfully moved rock
 
         def drop_rock(self):
             self.generate_rock()
             while True:
                 self.move_rock_horizontally()
                 moved_down = self.move_rock_down()
-                if not moved_down: # current_rock is in final place.
+                if not moved_down:  # current_rock is in final place. We process other things here.
                     self.num_rocks += 1
                     for settled_rock_pos in self.current_rock:
-                        self.occupied[settled_rock_pos] = (self.rock_idx - 1) % 5# once rock is in place, add it to occupied
+                        self.occupied[settled_rock_pos] = (self.rock_idx - 1) % 5
                     self.height = max([r[1] for r in self.occupied]) + 1
-                    for space in range(len(self.rocks_per_height), self.height):
+                    for space in range(len(self.rocks_per_height), self.height):  # Keeps track of how many rocks
+                        # exist to get us to a given height. Will be used after finding cycles for ease.
                         try:
                             self.rocks_per_height[space] = self.num_rocks
                         except IndexError:
                             self.rocks_per_height.append(self.num_rocks)
-                    for y in range(self.get_height()):
+                    for y in range(self.height):  # Adds a bitwise hash of the line to the line_hash.
+                        # I use this for cycle finding later on.
                         num = 0
                         for x in range(7):
                             if (x, y) in self.occupied:
@@ -113,78 +99,67 @@ def solve(part_no):
                             self.line_hash[y] = num
                         except IndexError:
                             self.line_hash.append(num)
-                    # if not self.found:
-                    #     self.check_for_cycle()
                     break
 
         def check_for_cycle(self):
-
-            if len(self.line_hash) < 100:
-                return False
-            curr = self.line_hash[-55:-5]
+            CYCLE_SIZE = 50  # I assumed that 50 identical rows-in-a-row would signify a cycle.
+            # Higher num == higher accuracy here.
+            BUFFER = 5  # To be safe, a buffer of 5 rows helps ensure future blocks will not be discounted.
+            # Again, you could increase this buffer to be safe in the case of Tetris I-block drops or something.
+            if len(self.line_hash) < CYCLE_SIZE * 3: # To avoid errors I push out the start of checking for cycles.
+                return None
             found = False
-            for start in range(len(self.line_hash) - 55):
-                if self.line_hash[start: start + 50] == curr:
+            end_slice = self.line_hash[-1 * (CYCLE_SIZE + BUFFER):-1 * BUFFER]
+            for start in range(len(self.line_hash) - (CYCLE_SIZE + BUFFER) - 1):
+                # Sliding window to see if there are any cycles
+                start_slice = self.line_hash[start: start + CYCLE_SIZE]
+                if start_slice == end_slice:
                     found = True
-                    distance = -55 + len(self.line_hash) - start
+                    # It's worth noting that this distance may end up a integer multiple of the shortest possible cycle
+                    # But this is a non issue since larger cycles are still cycles
+                    distance = -1 * (CYCLE_SIZE + BUFFER) + len(self.line_hash) - start
                     break
             if not found:
-                return False
+                return None
             inc = 0
             while self.line_hash[start - inc: start - inc + 50] == self.line_hash[-55 - inc: -5 - inc]:
                 inc += 1
-            self.found = True
-            self.cycle_length = distance
-            self.cycle_start = start - inc + 1
-            return True
+            start_index = start - inc + 1
+            return distance, start_index
 
-    total_rocks = {1:2022,2:1000000000000}[part_no]
-    sim = Room([
-        [(0,0),(1,0),(2,0),(3,0)],
-        [(0,1),(1,0),(1,1),(1,2),(2,1)],
-        [(0,0),(1,0),(2,0),(2,1),(2,2)],
-        [(0,0),(0,1),(0,2),(0,3)],
-        [(0,0),(1,0),(0,1),(1,1)]], lines[0])
-    # print(room)
-    broken = False
-    while sim.get_num_rocks() < total_rocks:
+    total_rocks = {1: 2022, 2: 1000000000000}[part_no]
+    rock_coords = [
+        [(0, 0), (1, 0), (2, 0), (3, 0)],
+        [(0, 1), (1, 0), (1, 1), (1, 2), (2, 1)],
+        [(0, 0), (1, 0), (2, 0), (2, 1), (2, 2)],
+        [(0, 0), (0, 1), (0, 2), (0, 3)],
+        [(0, 0), (1, 0), (0, 1), (1, 1)]]
+    directions = lines[0]
+
+    # First we need to find a cycle. To not have to worry about deleting rows or similar, I use a sim first to find the
+    # cycle, then get the values needed to solve the problem afterwards.
+    sim = Room(rock_coords, directions)
+    while sim.num_rocks < total_rocks:
         sim.drop_rock()
-        if not sim.found:
-            if sim.check_for_cycle():
-                #print (sim.cycle_length, sim.cycle_start)
-                height_per_cycle = sim.cycle_length
-                cycle_length = sim.rocks_per_height[sim.cycle_start + sim.cycle_length] - sim.rocks_per_height[sim.cycle_start]
-                cycle_start = sim.rocks_per_height[sim.cycle_start - 1]
-                remaining_rocks = (total_rocks - cycle_start) % cycle_length
-                num_cycles = (total_rocks - cycle_start) // cycle_length
-                broken = True
-                break
-                # print (list(enumerate(sim.rocks_per_height)))
-                #print (cycle_length, cycle_start, remaining_rocks, num_cycles)
-                #print(sim)
-            if broken:
-                break
-        if broken:
+        res = sim.check_for_cycle()  # Once a cycle is found we are good
+        if res is not None:
+            height_per_cycle, height_first_cycle = res
+            rocks_at_start = sim.rocks_per_height[height_first_cycle]
+            rocks_per_cycle = sim.rocks_per_height[height_first_cycle + height_per_cycle] - rocks_at_start
+            remainder_rocks = (total_rocks - rocks_at_start) % rocks_per_cycle
+            num_full_cycles = (total_rocks - rocks_at_start) // rocks_per_cycle
+            del sim  # delete the unneeded sim object at this point, break the loop
             break
 
-    room = Room([
-        [(0,0),(1,0),(2,0),(3,0)],
-        [(0,1),(1,0),(1,1),(1,2),(2,1)],
-        [(0,0),(1,0),(2,0),(2,1),(2,2)],
-        [(0,0),(0,1),(0,2),(0,3)],
-        [(0,0),(1,0),(0,1),(1,1)]], lines[0])
-    for rock in range(cycle_start):
+    # Actual room to get the height. It will be just the "before and after" cycle rocks, with manually added cycles.
+    room = Room(rock_coords, directions)
+    for rock in range(rocks_at_start):
         room.drop_rock()
-    #print(room.height)
-    for rock in range(remaining_rocks):
+    for rock in range(remainder_rocks): # behavior after the cycle will be uniform, so I drop the remainder rocks here
         room.drop_rock()
-    #print(room.height)
-    #print (room)
-    room.add_height(num_cycles * height_per_cycle)
-
-    #print(room.height)
-    return room.get_height()
-
+    # To account for all the cycles, I use the workaround method to add the cycle height
+    room.manual_add_height(num_full_cycles * height_per_cycle)
+    return room.height
 
 
 p1 = solve(1)
