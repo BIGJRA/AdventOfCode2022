@@ -1,2 +1,2 @@
-advent-of-code-data==2.0.0
+advent-of-code-data==1.2.3
 sympy==1.10.1
